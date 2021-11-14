@@ -6,3 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+gfx_core = "0.9"
+gfx_device_gl = "0.16"
+ggez = "0.7"
+glam = "0.20"
+imgui = "0.8"
+imgui-gfx-renderer = "0.8"
+nalgebra = "0.29"
+rhai = "1.1"
