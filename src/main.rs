@@ -1,5 +1,5 @@
 //! The simplest possible example that does something.
-#![allow(clippy::unnecessary_wraps)]
+// #![allow(clippy::unnecessary_wraps)]
 
 extern crate ggez;
 
@@ -7,16 +7,15 @@ mod imgui_wrapper;
 
 use crate::imgui_wrapper::ImGuiWrapper;
 
-// use ggez::conf;
+use ggez::conf;
 use ggez::event::{self, EventHandler, KeyCode, KeyMods, MouseButton};
-use ggez::graphics::{self, Color, DrawParam};
+use ggez::graphics::{self, Color, DrawParam, Mesh, Text};
+use ggez::timer;
 use ggez::{Context, GameResult};
 use glam::*;
 
-// extern crate nalgebra as na;
-// use na::Point2;
-
 struct MainState {
+    has_imgui: bool,
     pos_x: f32,
     imgui_wrapper: ImGuiWrapper,
     hidpi_factor: f32,
@@ -26,6 +25,7 @@ impl MainState {
     fn new(mut ctx: &mut Context, hidpi_factor: f32) -> GameResult<MainState> {
         let imgui_wrapper = ImGuiWrapper::new(&mut ctx);
         let s = MainState {
+            has_imgui: false,
             pos_x: 0.0,
             imgui_wrapper,
             hidpi_factor,
@@ -36,7 +36,9 @@ impl MainState {
 
 impl EventHandler for MainState {
     fn update(&mut self, _ctx: &mut Context) -> GameResult<()> {
-        self.pos_x = self.pos_x % 800.0 + 1.0;
+        if !self.has_imgui {
+            self.pos_x = self.pos_x % 800.0 + 1.0;
+        }
         Ok(())
     }
 
@@ -45,7 +47,7 @@ impl EventHandler for MainState {
 
         // Render game stuff
         {
-            let circle = graphics::Mesh::new_circle(
+            let circle = Mesh::new_circle(
                 ctx,
                 graphics::DrawMode::fill(),
                 Vec2::new(self.pos_x, 380.0),
@@ -55,9 +57,14 @@ impl EventHandler for MainState {
             )?;
             graphics::draw(ctx, &circle, DrawParam::new())?;
         }
+        {
+            let fps_counter = Text::new(format!("{:.0}", timer::fps(ctx)));
+            // .set_bounds(Vec2::new(0.0, 0.0), graphics::Align::Left);
+            graphics::draw(ctx, &fps_counter, DrawParam::new())?;
+        }
 
         // Render game ui
-        {
+        if self.has_imgui {
             self.imgui_wrapper.render(ctx, self.hidpi_factor);
         }
 
@@ -66,7 +73,9 @@ impl EventHandler for MainState {
     }
 
     fn mouse_motion_event(&mut self, _ctx: &mut Context, x: f32, y: f32, _dx: f32, _dy: f32) {
-        self.imgui_wrapper.update_mouse_pos(x, y);
+        if self.has_imgui {
+            self.imgui_wrapper.update_mouse_pos(x, y);
+        }
     }
 
     fn mouse_button_down_event(
@@ -76,29 +85,45 @@ impl EventHandler for MainState {
         _x: f32,
         _y: f32,
     ) {
-        self.imgui_wrapper.update_mouse_down(button);
+        if self.has_imgui {
+            self.imgui_wrapper.update_mouse_down(button);
+        }
     }
 
     fn mouse_button_up_event(&mut self, _ctx: &mut Context, button: MouseButton, _x: f32, _y: f32) {
-        self.imgui_wrapper.update_mouse_up(button);
+        if self.has_imgui {
+            self.imgui_wrapper.update_mouse_up(button);
+        }
     }
 
     fn key_down_event(
         &mut self,
-        _ctx: &mut Context,
+        ctx: &mut Context,
         keycode: KeyCode,
         keymods: KeyMods,
-        _repeat: bool,
+        repeat: bool,
     ) {
-        self.imgui_wrapper.update_key_down(keycode, keymods);
+        if keycode == KeyCode::Escape && !repeat {
+            self.has_imgui ^= true;
+        }
+        if keycode == KeyCode::Q && keymods.contains(KeyMods::CTRL) {
+            ggez::event::quit(ctx);
+        }
+        if self.has_imgui {
+            self.imgui_wrapper.update_key_down(keycode, keymods);
+        }
     }
 
     fn key_up_event(&mut self, _ctx: &mut Context, keycode: KeyCode, keymods: KeyMods) {
-        self.imgui_wrapper.update_key_up(keycode, keymods);
+        if self.has_imgui {
+            self.imgui_wrapper.update_key_up(keycode, keymods);
+        }
     }
 
     fn text_input_event(&mut self, _ctx: &mut Context, val: char) {
-        self.imgui_wrapper.update_text(val);
+        if self.has_imgui {
+            self.imgui_wrapper.update_text(val);
+        }
     }
 
     fn resize_event(&mut self, ctx: &mut Context, width: f32, height: f32) {
@@ -108,55 +133,19 @@ impl EventHandler for MainState {
     }
 
     fn mouse_wheel_event(&mut self, _ctx: &mut Context, x: f32, y: f32) {
-        self.imgui_wrapper.update_scroll(x, y);
+        if self.has_imgui {
+            self.imgui_wrapper.update_scroll(x, y);
+        }
     }
 }
 
-// impl event::EventHandler<ggez::GameError> for MainState {
-//     fn update(&mut self, _ctx: &mut Context) -> GameResult {
-//         self.pos_x = self.pos_x % 800.0 + 1.0;
-//         Ok(())
-//     }
-
-//     fn draw(&mut self, ctx: &mut Context) -> GameResult {
-//         graphics::clear(ctx, [0.1, 0.2, 0.3, 1.0].into());
-
-//         let circle = graphics::Mesh::new_circle(
-//             ctx,
-//             graphics::DrawMode::fill(),
-//             Vec2::new(0.0, 0.0),
-//             100.0,
-//             2.0,
-//             Color::WHITE,
-//         )?;
-//         graphics::draw(ctx, &circle, (Vec2::new(self.pos_x, 380.0),))?;
-
-//         graphics::present(ctx)?;
-//         Ok(())
-//     }
-// }
-
 pub fn main() -> GameResult {
-    let cb = ggez::ContextBuilder::new("super_simple", "ggez");
+    let cb = ggez::ContextBuilder::new("super_simple", "ggez").window_setup(
+        conf::WindowSetup::default()
+            .title("super_simple with imgui")
+            .vsync(false),
+    );
     let (mut ctx, event_loop) = cb.build()?;
     let state = MainState::new(&mut ctx, 1.0)?;
     event::run(ctx, event_loop, state)
 }
-
-// From Olivia
-
-// pub fn mains() -> ggez::GameResult {
-//     let cb = ggez::ContextBuilder::new("super_simple with imgui", "ggez")
-//         .window_setup(conf::WindowSetup::default().title("super_simple with imgui"))
-//         .window_mode(
-//             conf::WindowMode::default().resizable(true), /*.dimensions(750.0, 500.0)*/
-//         );
-//     let (ref mut ctx, event_loop) = &mut cb.build()?;
-
-//     // let hidpi_factor = event_loop.get_primary_monitor().get_hidpi_factor() as f32;
-//     // println!("main hidpi_factor = {}", hidpi_factor);
-
-//     let state = &mut MainState::new(ctx, 1.0)?;
-
-//     event::run(ctx, event_loop, state)
-// }
